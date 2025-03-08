@@ -1,0 +1,146 @@
+syntax = "proto3";
+
+package biz;
+
+option go_package = "api/biz";
+
+service BizService {
+  rpc GetSpaces(GetSpacesRequest) returns (SpaceList);
+  rpc CreateSpace(CreateSpaceRequest) returns (Space);
+  rpc UpdateSpace(UpdateSpaceRequest) returns (Space);
+  rpc DeleteSpace(DeleteSpaceRequest) returns (SuccessResponse);
+  rpc JoinSpace(JoinSpaceRequest) returns (Space);
+  rpc LeaveSpace(JoinSpaceRequest) returns (SuccessResponse);
+
+  rpc GetChannels(GetChannelsRequest) returns (ChannelList);
+  rpc CreateChannel(CreateChannelRequest) returns (Channel);
+  rpc UpdateChannel(UpdateChannelRequest) returns (Channel);
+  rpc DeleteChannel(DeleteChannelRequest) returns (SuccessResponse);
+  rpc JoinChannel(JoinChannelRequest) returns (Channel);
+  rpc LeaveChannel(JoinChannelRequest) returns (SuccessResponse);
+
+  rpc IsSpaceMember(IsSpaceMemberRequest) returns (IsSpaceMemberResponse);
+  rpc IsChannelMember(IsChannelMemberRequest) returns (IsChannelMemberResponse);
+  rpc GetChannelIds(GetChannelIdsRequest) returns (GetChannelIdsResponse);
+}
+
+
+message GetSpacesRequest {
+  int64 userId = 1;
+  int64 cursor = 2;
+  int32 limit = 3;
+}
+
+message CreateSpaceRequest {
+  int64 userId = 1;
+  string name = 2;
+  string avatar = 3;
+}
+
+message UpdateSpaceRequest {
+  int64 userId = 1;
+  int64 spaceId = 2;
+  string name = 3;
+  string avatar = 4;
+}
+
+message DeleteSpaceRequest {
+  int64 userId = 1;
+  int64 spaceId = 2;
+}
+
+message JoinSpaceRequest {
+  int64 userId = 1;
+  int64 spaceId = 2;
+}
+
+message Space {
+  int64 id = 1;
+  string name = 2;
+  string avatar = 3;
+  int64 owner = 4;
+}
+
+message SpaceList {
+  repeated Space spaces = 1;
+  int64 cursor = 2;
+  int32 size = 3;
+}
+
+message GetChannelsRequest {
+  int64 userId = 1;
+  int64 spaceId = 2;
+  int64 cursor = 3;
+  int32 limit = 4;
+}
+
+message CreateChannelRequest {
+  int64 userId = 1;
+  int64 spaceId = 2;
+  string name = 3;
+  string type = 4;
+}
+
+message UpdateChannelRequest {
+  int64 userId = 1;
+  int64 channelId = 2;
+  string name = 3;
+  string type = 4;
+}
+
+
+message DeleteChannelRequest {
+  int64 userId = 1;
+  int64 channelId = 2;
+}
+
+message JoinChannelRequest {
+  int64 userId = 1;
+  int64 spaceId = 2;
+  int64 channelId = 3;
+}
+
+message Channel {
+  int64 id = 1;
+  string name = 2;
+  int64 owner = 3;
+  string type = 4;
+}
+
+message ChannelList {
+  repeated Channel channels = 1;
+  int64 cursor = 2;
+  int32 size = 3;
+}
+
+message SuccessResponse {
+  bool success = 1;
+}
+
+message IsSpaceMemberRequest {
+  int64 userId = 1;
+  int64 spaceId = 2;
+}
+
+message IsSpaceMemberResponse {
+  bool isMember = 1;
+}
+
+message IsChannelMemberRequest {
+  int64 userId = 1;
+  int64 channelId = 2;
+}
+
+message IsChannelMemberResponse {
+  bool isMember = 1;
+}
+
+message GetChannelIdsRequest {
+  int64 userId = 1;
+  int64 spaceId = 2;
+}
+
+message GetChannelIdsResponse {
+  repeated int64 channelIds = 1;
+}
+

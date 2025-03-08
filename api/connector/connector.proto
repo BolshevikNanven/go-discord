@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package connector;
+
+option go_package = "api/connector";
+
+service ConnectorService {
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+}
+
+message SendMessageRequest {
+  int64 userId = 1;
+  string message = 2;
+}
+
+message SendMessageResponse {
+  bool success = 1;
+}

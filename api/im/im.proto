@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package im;
+
+option go_package = "api/im";
+
+service ImService {
+  rpc AckMessages(AckMessagesRequest) returns (AckMessagesResponse);
+  rpc GetInboxMessages(GetInboxMessagesRequest)returns (GetInboxMessagesResponse);
+
+  rpc AckChannelMessage(AckChannelMessageRequest) returns (AckChannelMessageResponse);
+  rpc GetChannelInbox(GetChannelInboxRequest) returns (GetChannelInboxResponse);
+
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc PullHistory(PullHistoryRequest) returns (PullHistoryResponse);
+}
+
+message Message {
+  int64 id = 1;
+  int64 space_id = 2;
+  int64 from = 3;
+  int64 to = 4;
+  string type = 5;
+  string content = 6;
+  int64 created_at = 7;
+}
+
+message SendMessageRequest {
+  int64 space_id = 1;
+  int64 channel_id = 2;
+  int64 from = 3;
+  int64 to = 4;
+  string type = 5;
+  string content = 6;
+}
+
+message SendMessageResponse {
+  int64 message_id = 1;
+}
+
+message AckMessagesRequest {
+  int64 space_id = 1;
+  int64 user_id = 2;
+  repeated int64 message_ids = 3;
+}
+
+message AckMessagesResponse {
+  bool success = 1;
+}
+
+message PullHistoryRequest {
+  int64 space_id = 1;
+  int64 channel_id = 2;
+  int64 user_id = 3;
+  int64 from = 4;
+  int64 cursor = 5;
+  int32 limit = 6;
+}
+
+message PullHistoryResponse {
+  repeated Message messages = 1;
+  int64 cursor = 2;
+}
+
+message GetInboxMessagesRequest {
+  int64 space_id = 1;
+  int64 user_id = 2;
+  int32 limit = 3;
+}
+
+message GetInboxMessagesResponse {
+  repeated Message messages = 1;
+}
+
+message AckChannelMessageRequest {
+  int64 channel_id = 1;
+  int64 user_id = 2;
+  int64 message_id = 3;
+}
+
+message AckChannelMessageResponse {
+  bool success = 1;
+}
+
+message GetChannelInboxRequest {
+  int64 channel_id = 1;
+  int64 user_id = 2;
+}
+
+message GetChannelInboxResponse {
+  int64 current = 1;
+  int64 last = 2;
+}

@@ -4,6 +4,7 @@ import (
 	"discord/data"
 	"discord/pkg/discovery"
 	"discord/pkg/jwtutil"
+	"discord/pkg/tracer"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -14,6 +15,7 @@ type Config struct {
 	Jwt       jwtutil.Config       `yaml:"jwt"`
 	Redis     data.RedisConfig     `yaml:"redis"`
 	Websocket WebsocketConfig      `yaml:"websocket"`
+	Tracer    tracer.Config        `yaml:"tracer"`
 	Host      string               `yaml:"host"`
 	Port      string               `yaml:"port"`
 	Name      string               `yaml:"name"`

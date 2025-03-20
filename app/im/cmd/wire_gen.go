@@ -33,7 +33,7 @@ func runApp(wg *sync.WaitGroup) chan struct{} {
 	bizClientPool := client.NewBizClientPool()
 	snowflakeutilConfig := config.NewSnowflakeConfig(configConfig)
 	node := snowflakeutil.New(snowflakeutilConfig)
-	imServiceServer := internal.NewServer(messageRepository, inboxRepository, mqRepository, bizClientPool, node)
+	imServiceServer := internal.NewServer(messageRepository, inboxRepository, mqRepository, bizClientPool, node, logger)
 	v := newApp(wg, logger, imServiceServer, configConfig)
 	return v
 }

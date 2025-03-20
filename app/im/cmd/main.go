@@ -6,12 +6,14 @@ import (
 	"discord/app/im/internal/client"
 	"discord/app/im/internal/config"
 	"discord/pkg/discovery"
+	"discord/pkg/tracer"
 	"fmt"
 	"net"
 	"os"
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -31,6 +33,7 @@ func main() {
 
 func newApp(wg *sync.WaitGroup, logger *zap.Logger, service im.ImServiceServer, conf *config.Config) chan struct{} {
 	client.Register(logger, conf.Etcd)
+	tracer.Register("im", conf.Tracer)
 
 	address := fmt.Sprintf("%s:%s", conf.Host, conf.Port)
 	register := discovery.NewRegister(conf.Etcd.Address)
@@ -51,6 +54,7 @@ func newApp(wg *sync.WaitGroup, logger *zap.Logger, service im.ImServiceServer, 
 			MinTime:             60 * time.Second,
 			PermitWithoutStream: true,
 		}),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 	)
 	im.RegisterImServiceServer(srv, service)
 

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"discord/app/gateway/internal/client"
 	"discord/app/gateway/internal/config"
+	"discord/pkg/tracer"
 	"fmt"
 	"os"
 
@@ -23,7 +24,9 @@ func main() {
 
 func newApp(logger *zap.Logger, conf *config.Config, engine *fiber.App) chan<- struct{} {
 	closeChan := make(chan struct{})
+
 	client.Register(logger, conf.Etcd)
+	tracer.Register("gateway", conf.Tracer)
 
 	go func() {
 		if err := engine.Listen(fmt.Sprintf("%s:%s", conf.Host, conf.Port)); err != nil {

@@ -4,6 +4,7 @@ import (
 	"discord/data"
 	"discord/pkg/discovery"
 	"discord/pkg/snowflakeutil"
+	"discord/pkg/tracer"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -14,6 +15,7 @@ type Config struct {
 	Etcd      *discovery.EtcdConfig `yaml:"etcd"`
 	Database  *data.DatabaseConfig  `yaml:"database"`
 	Snowflake *snowflakeutil.Config `yaml:"snowflake"`
+	Tracer    *tracer.Config        `yaml:"tracer"`
 	MQ        *data.RocketMQConfig  `yaml:"mq"`
 	Host      string                `yaml:"host"`
 	Port      string                `yaml:"port"`

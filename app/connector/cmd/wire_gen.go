@@ -26,7 +26,7 @@ func runApp(wg *sync.WaitGroup) chan struct{} {
 	userRepository := repository.NewUserRepository(redisClient)
 	channelRepository := repository.NewChannelRepository(redisClient)
 	bizClientPool := client.NewBizClientPool()
-	hubHub := hub.NewHub(configConfig, userRepository, channelRepository, bizClientPool)
+	hubHub := hub.NewHub(configConfig, userRepository, channelRepository, bizClientPool, logger)
 	jwtutilConfig := config.NewJwtConfig(configConfig)
 	webSocketServer := internal.NewWebSocketServer(hubHub, jwtutilConfig)
 	connectorServiceServer := internal.NewRpcServer(hubHub)

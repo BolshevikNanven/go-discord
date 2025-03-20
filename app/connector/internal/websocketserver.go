@@ -5,68 +5,60 @@ import (
 	"discord/pkg/jwtutil"
 	"net/http"
 
-	"github.com/gorilla/websocket"
+	"github.com/gobwas/ws"
 )
 
 type WebSocketServer struct {
-	upgrader  *websocket.Upgrader
 	server    *http.Server
 	jwtConfig *jwtutil.Config
 	clientHub *hub.Hub
 }
 
 func NewWebSocketServer(clientHub *hub.Hub, jwtConfig *jwtutil.Config) *WebSocketServer {
-	ws := &WebSocketServer{
-		upgrader: &websocket.Upgrader{
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
-		},
+	s := &WebSocketServer{
 		jwtConfig: jwtConfig,
 		clientHub: clientHub,
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", ws.handler)
-	ws.server = &http.Server{
+	mux.HandleFunc("/", s.handler)
+	s.server = &http.Server{
 		Handler: mux,
 	}
 
-	return ws
+	return s
 }
 
-func (ws *WebSocketServer) Start(address string) {
-	ws.server.Addr = address
+func (s *WebSocketServer) Start(address string) {
+	s.server.Addr = address
 
-	go ws.server.ListenAndServe()
+	go s.server.ListenAndServe()
 }
 
-func (ws *WebSocketServer) Stop() {
-	ws.server.Close()
-	ws.clientHub.Close()
+func (s *WebSocketServer) Stop() {
+	s.server.Close()
+	s.clientHub.Close()
 }
 
-func (ws *WebSocketServer) handler(w http.ResponseWriter, r *http.Request) {
+func (s *WebSocketServer) handler(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("Authorization")
 	if token == "" {
 		http.Error(w, "无权限", http.StatusUnauthorized)
 		return
 	}
 
-	claims, err := jwtutil.ValidateToken(token, jwtutil.AccessToken, ws.jwtConfig)
+	claims, err := jwtutil.ValidateToken(token, jwtutil.AccessToken, s.jwtConfig)
 	if err != nil {
 		http.Error(w, "无权限", http.StatusUnauthorized)
 		return
 	}
 
-	conn, err := ws.upgrader.Upgrade(w, r, nil)
+	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
 		http.Error(w, "Failed to upgrade to WebSocket", http.StatusInternalServerError)
 		return
 	}
 
-	hub.ServeClient(claims.UserId, conn, ws.clientHub)
+	s.clientHub.Serve(claims.UserId, conn)
 
 }

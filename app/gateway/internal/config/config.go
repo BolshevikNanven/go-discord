@@ -3,16 +3,18 @@ package config
 import (
 	"discord/pkg/discovery"
 	"discord/pkg/jwtutil"
+	"discord/pkg/tracer"
 	"os"
 
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Etcd *discovery.EtcdConfig `yaml:"etcd"`
-	JWT  *jwtutil.Config       `yaml:"jwt"`
-	Host string                `yaml:"host"`
-	Port string                `yaml:"port"`
+	Etcd   *discovery.EtcdConfig `yaml:"etcd"`
+	JWT    *jwtutil.Config       `yaml:"jwt"`
+	Tracer *tracer.Config        `yaml:"tracer"`
+	Host   string                `yaml:"host"`
+	Port   string                `yaml:"port"`
 }
 
 func NewConfig() *Config {

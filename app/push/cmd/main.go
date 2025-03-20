@@ -6,6 +6,7 @@ import (
 	"discord/app/push/internal/client"
 	"discord/app/push/internal/config"
 	"discord/pkg/discovery"
+	"discord/pkg/tracer"
 	"fmt"
 	"os"
 	"sync"
@@ -27,6 +28,7 @@ func main() {
 
 func newApp(wg *sync.WaitGroup, logger *zap.Logger, server *internal.Server, conf *config.Config) chan struct{} {
 	client.Register(logger, conf.Etcd)
+	tracer.Register("push", conf.Tracer)
 
 	address := fmt.Sprintf("%s:%s", conf.Host, conf.Port)
 	register := discovery.NewRegister(conf.Etcd.Address)

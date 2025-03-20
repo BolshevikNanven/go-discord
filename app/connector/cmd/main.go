@@ -8,12 +8,14 @@ import (
 	"discord/app/connector/internal/config"
 	"discord/app/connector/internal/hub"
 	"discord/pkg/discovery"
+	"discord/pkg/tracer"
 	"fmt"
 	"net"
 	"os"
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -41,7 +43,9 @@ func newApp(
 ) chan struct{} {
 	address := fmt.Sprintf("%s:%s", conf.Host, conf.Port)
 	websocketAddress := fmt.Sprintf("%s:%s", conf.Websocket.Host, conf.Websocket.Port)
+
 	client.Register(logger, &conf.Etcd)
+	tracer.Register("connector", &conf.Tracer)
 
 	register := discovery.NewRegister(conf.Etcd.Address)
 	if err := register.Register(discovery.Server{
@@ -65,6 +69,7 @@ func newApp(
 			MinTime:             60 * time.Second,
 			PermitWithoutStream: true,
 		}),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 	)
 	connector.RegisterConnectorServiceServer(srv, rpcServer)
 	go func() {

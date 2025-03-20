@@ -1,16 +1,28 @@
 package hub
 
 import (
-	"context"
-	"discord/api/biz"
 	"discord/app/connector/internal/client"
 	"discord/app/connector/internal/config"
 	"discord/app/connector/internal/repository"
+	"discord/pkg/epoller"
 	"fmt"
+	"net"
+	"time"
+
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
+	"go.uber.org/zap"
 )
 
+type ClientMessage struct {
+	UserId  int64
+	Message []byte
+}
+
 type Hub struct {
-	clients map[int64]*Client
+	epoll       epoller.Poller
+	clients     map[int64]*Client
+	connClients map[int]*Client
 
 	connectorId string
 
@@ -20,8 +32,11 @@ type Hub struct {
 
 	registerChan   chan *Client
 	unregisterChan chan *Client
+	sendChan       chan *ClientMessage
 
 	closeChan chan struct{}
+
+	logger *zap.Logger
 }
 
 func NewHub(
@@ -29,33 +44,47 @@ func NewHub(
 	userRepository repository.UserRepository,
 	channelRepository repository.ChannelRepository,
 	bizClientPool *client.BizClientPool,
+	logger *zap.Logger,
 ) *Hub {
+	ep, err := epoller.NewPoller(1024)
+	if err != nil {
+		panic("epoll new error!")
+	}
 	return &Hub{
 		connectorId:       fmt.Sprintf("connector-%s", conf.Name),
+		epoll:             ep,
 		clients:           make(map[int64]*Client),
+		connClients:       make(map[int]*Client),
 		registerChan:      make(chan *Client),
 		unregisterChan:    make(chan *Client),
 		userRepository:    userRepository,
 		channelRepository: channelRepository,
 		bizClientPool:     bizClientPool,
 		closeChan:         make(chan struct{}),
+		sendChan:          make(chan *ClientMessage, 256),
+		logger:            logger,
 	}
 }
 
 func (h *Hub) Run() {
+	go h.readPump()
+	go h.writePump()
+	go h.heartPump()
+
 	for {
 		select {
 		case client := <-h.registerChan:
 			h.clients[client.userId] = client
-
-			go client.readPump()
-			go client.writePump()
+			h.connClients[client.fd] = client
+			h.epoll.Add(client.conn)
 
 		case client := <-h.unregisterChan:
 			if _, ok := h.clients[client.userId]; ok {
-				h.deleteUserConnector(client)
+				client.DeleteUserConnector()
+				_ = h.epoll.Remove(client.conn)
+				client.conn.Close()
 
-				close(client.sendChan)
+				delete(h.connClients, client.fd)
 				delete(h.clients, client.userId)
 			}
 
@@ -67,6 +96,13 @@ END:
 	return
 }
 
+func (h *Hub) Serve(userId int64, conn net.Conn) {
+	client := NewClient(userId, conn, h)
+
+	h.registerChan <- client
+	h.logger.Info(fmt.Sprintf("user %d connected, client %d", userId, client.fd))
+}
+
 func (h *Hub) SendMessage(userId int64, message []byte) bool {
 	client, ok := h.clients[userId]
 	if !ok {
@@ -75,105 +111,77 @@ func (h *Hub) SendMessage(userId int64, message []byte) bool {
 		return false
 	}
 
-	client.sendChan <- message
+	h.sendChan <- &ClientMessage{UserId: userId, Message: message}
 	return true
 }
 
 func (h *Hub) Close() {
 	for userId, client := range h.clients {
+		// 直接删除
 		_ = h.userRepository.DeleteUserConnector(client.spaceId, userId)
 		delete(h.clients, userId)
-
-		close(client.sendChan)
 	}
 
+	close(h.sendChan)
 	close(h.closeChan)
 	close(h.registerChan)
 	close(h.unregisterChan)
 }
 
-func (h *Hub) updateUserConnector(client *Client, spaceId int64) error {
-	// 检查用户是否是空间成员
-	resp, err := h.bizClientPool.Get().IsSpaceMember(context.Background(), &biz.IsSpaceMemberRequest{
-		SpaceId: spaceId,
-		UserId:  client.userId,
-	})
-	if err != nil {
-		return err
-	}
-	if !resp.IsMember {
-		return nil
-	}
-
-	// 移动用户connector
-	if err := h.userRepository.MoveUserConnector(client.userId, h.connectorId, client.spaceId, spaceId); err != nil {
-		return err
-	}
-
-	// 首次连接
-	if client.spaceId == 0 {
-		resp, err := h.bizClientPool.Get().GetChannelIds(context.Background(), &biz.GetChannelIdsRequest{
-			SpaceId: spaceId,
-			UserId:  client.userId,
-		})
+func (h *Hub) readPump() {
+	for {
+		connections, err := h.epoll.Wait(128)
 		if err != nil {
-			return err
+			h.logger.Error("epoll wait error", zap.Error(err))
+			continue
 		}
-
-		if len(resp.ChannelIds) > 0 {
-			if err := h.channelRepository.AddChannelConnectors(client.userId, resp.ChannelIds, h.connectorId); err != nil {
-				return err
+		h.logger.Info(fmt.Sprintf("epoll wait %d connections", len(connections)))
+		for _, conn := range connections {
+			if conn == nil {
+				break
 			}
+
+			fd := epoller.SocketFD(conn)
+			if client, ok := h.connClients[fd]; ok {
+				client.Receive()
+			} else {
+				h.logger.Error(fmt.Sprintf("client %d not found", fd))
+				h.epoll.Remove(conn)
+			}
+
 		}
-
-		return nil
 	}
-
-	// 移动用户频道connector
-	var (
-		prevChannelIds []int64
-		newChannelIds  []int64
-	)
-	if resp, err := h.bizClientPool.Get().GetChannelIds(context.Background(), &biz.GetChannelIdsRequest{
-		SpaceId: client.spaceId,
-		UserId:  client.userId,
-	}); err != nil {
-		return err
-	} else {
-		prevChannelIds = resp.ChannelIds
-	}
-	if resp, err := h.bizClientPool.Get().GetChannelIds(context.Background(), &biz.GetChannelIdsRequest{
-		SpaceId: spaceId,
-		UserId:  client.userId,
-	}); err != nil {
-		return err
-	} else {
-		newChannelIds = resp.ChannelIds
-	}
-
-	if err := h.channelRepository.MoveChannelConnectors(client.userId, prevChannelIds, newChannelIds, h.connectorId); err != nil {
-		return err
-	}
-
-	return nil
 }
 
-func (h *Hub) deleteUserConnector(client *Client) {
-	_ = h.userRepository.DeleteUserConnector(client.spaceId, client.userId)
-
-	resp, err := h.bizClientPool.Get().GetChannelIds(context.Background(), &biz.GetChannelIdsRequest{
-		SpaceId: client.spaceId,
-		UserId:  client.userId,
-	})
-	if err != nil {
-		return
+func (h *Hub) writePump() {
+	for {
+		select {
+		case msg := <-h.sendChan:
+			if client, ok := h.clients[msg.UserId]; ok {
+				if err := wsutil.WriteServerMessage(client.conn, ws.OpText, msg.Message); err != nil {
+					h.unregisterChan <- client
+				}
+			}
+		case <-h.closeChan:
+			return
+		}
 	}
-	if len(resp.ChannelIds) == 0 {
-		return
-	}
+}
 
-	for _, channelId := range resp.ChannelIds {
-		_ = h.channelRepository.DeleteChannelConnector(channelId, client.userId, h.connectorId)
-	}
+func (h *Hub) heartPump() {
+	ticker := time.NewTicker(pingPeriod)
+	defer ticker.Stop()
 
+	for {
+		<-ticker.C
+		for _, client := range h.clients {
+			if time.Since(client.lastPong) > pingPeriod+pongWait {
+				h.unregisterChan <- client
+				continue
+			}
+			if err := wsutil.WriteServerMessage(client.conn, ws.OpPing, nil); err != nil {
+				h.unregisterChan <- client
+			}
+		}
+	}
 }

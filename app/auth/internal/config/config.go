@@ -5,18 +5,20 @@ import (
 	"discord/pkg/discovery"
 	"discord/pkg/jwtutil"
 	"discord/pkg/snowflakeutil"
+	"discord/pkg/tracer"
 	"os"
 
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Etcd      discovery.EtcdConfig
-	Database  data.DatabaseConfig
-	Jwt       jwtutil.Config
-	Snowflake snowflakeutil.Config
-	Host      string
-	Port      string
+	Etcd      discovery.EtcdConfig `yaml:"etcd"`
+	Database  data.DatabaseConfig  `yaml:"database"`
+	Jwt       jwtutil.Config       `yaml:"jwt"`
+	Snowflake snowflakeutil.Config `yaml:"snowflake"`
+	Tracer    tracer.Config        `yaml:"tracer"`
+	Host      string               `yaml:"host"`
+	Port      string               `yaml:"port"`
 }
 
 func NewConfig() *Config {

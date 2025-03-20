@@ -5,12 +5,14 @@ import (
 	"discord/api/biz"
 	"discord/app/biz/internal/config"
 	"discord/pkg/discovery"
+	"discord/pkg/tracer"
 	"fmt"
 	"net"
 	"os"
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 )
@@ -29,6 +31,8 @@ func main() {
 
 func newApp(wg *sync.WaitGroup, service biz.BizServiceServer, conf *config.Config) chan struct{} {
 	address := fmt.Sprintf("%s:%s", conf.Host, conf.Port)
+	tracer.Register("biz", &conf.Tracer)
+
 	register := discovery.NewRegister(conf.Etcd.Address)
 
 	if err := register.Register(discovery.Server{
@@ -47,6 +51,7 @@ func newApp(wg *sync.WaitGroup, service biz.BizServiceServer, conf *config.Confi
 			MinTime:             60 * time.Second,
 			PermitWithoutStream: true,
 		}),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 	)
 	biz.RegisterBizServiceServer(srv, service)
 

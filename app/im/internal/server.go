@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -24,6 +25,7 @@ type Server struct {
 	bizClientPool *client.BizClientPool
 
 	idGenerator *snowflakeutil.Node
+	logger      *zap.Logger
 }
 
 func NewServer(
@@ -32,6 +34,7 @@ func NewServer(
 	mqRepo repository.MqRepository,
 	bizClientPool *client.BizClientPool,
 	idGenerator *snowflakeutil.Node,
+	logger *zap.Logger,
 ) im.ImServiceServer {
 	return &Server{
 		messageRepo:   messageRepo,
@@ -39,6 +42,7 @@ func NewServer(
 		mqRepo:        mqRepo,
 		bizClientPool: bizClientPool,
 		idGenerator:   idGenerator,
+		logger:        logger,
 	}
 }
 
@@ -80,6 +84,7 @@ func (s *Server) SendMessage(ctx context.Context, req *im.SendMessageRequest) (*
 
 	// 消息入队
 	if err := s.mqRepo.SendChatMessage(&message, isChannel); err != nil {
+		s.logger.Error("failed to send message to mq:", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to send message to mq")
 	}
 

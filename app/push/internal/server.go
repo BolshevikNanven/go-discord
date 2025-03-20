@@ -69,6 +69,7 @@ func (s *Server) Run() {
 				continue
 			}
 
+			// 根据tag处理消息
 			switch tag {
 			case "peer":
 				err = s.handlePeerMessage(&chatMessage)
